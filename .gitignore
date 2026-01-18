@@ -1,12 +1,14 @@
-Packages
-.build
-xcuserdata
-*.xcodeproj
-DerivedData/
+# macOS
 .DS_Store
-db.sqlite
-.swiftpm
+
+# SwiftPM
+.build/
+.swiftpm/xcode/package.xcworkspace/xcuserdata/
+.swiftpm/configuration/
+
+# Xcode user data
+xcuserdata/
+*.xcuserstate
+
+# Env/secrets
 .env
-.env.*
-!.env.example
-default.profraw
