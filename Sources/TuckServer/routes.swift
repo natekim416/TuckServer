@@ -1,14 +1,20 @@
-import Fluent
 import Vapor
 
 func routes(_ app: Application) throws {
-    app.get { req async in
-        "It works!"
+    try app.register(collection: AuthController())
+
+    let protected = app.grouped(
+        UserJWTPayload.authenticator(),
+        UserJWTAuthenticator(),
+        User.guardMiddleware()
+    )
+
+    protected.get("me") { req async throws -> PublicUser in
+        let user = try req.auth.require(User.self)
+        return user.asPublic
     }
 
-    app.get("hello") { req async -> String in
-        "Hello, world!"
+    try protected.group("api") { api in
+        try api.register(collection: SmartSortController())
     }
-
-    try app.register(collection: TodoController())
 }

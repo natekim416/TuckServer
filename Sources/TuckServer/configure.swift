@@ -17,7 +17,12 @@ public func configure(_ app: Application) async throws {
         tls: .prefer(try .init(configuration: .clientDefault)))
     ), as: .psql)
 
-    app.migrations.add(CreateTodo())
+    app.migrations.add(CreateUser())
+    try await app.autoMigrate()
+
+    let jwtSecret = Environment.get("JWT_SECRET") ?? "dev-insecure-secret"
+    app.jwt.signers.use(.hs256(key: jwtSecret))
+
 
     // register routes
     try routes(app)
