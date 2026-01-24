@@ -1,20 +1,14 @@
 import Vapor
+import Fluent
+import JWT
 
 func routes(_ app: Application) throws {
+    // Public routes
     try app.register(collection: AuthController())
-
-    let protected = app.grouped(
-        UserJWTPayload.authenticator(),
-        UserJWTAuthenticator(),
-        User.guardMiddleware()
-    )
-
-    protected.get("me") { req async throws -> PublicUser in
-        let user = try req.auth.require(User.self)
-        return user.asPublic
-    }
-
-    try protected.group("api") { api in
-        try api.register(collection: SmartSortController())
-    }
+    
+    // Protected routes (require JWT)
+    let protected = app.grouped(UserJWTAuthenticator())
+        .grouped(User.guardMiddleware())
+    
+    try protected.register(collection: SmartSortController())
 }

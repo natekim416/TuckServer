@@ -37,20 +37,39 @@ struct SmartSortController: RouteCollection {
         \( (input.userExamples ?? "").isEmpty ? "" : "Here is how the user previously organized similar items:\n" + (input.userExamples ?? "") )
         """
 
-        let body: [String: Any] = [
-            "model": "gpt-5-mini",
-            "response_format": ["type": "json_object"],
-            "messages": [
-                ["role": "system", "content": systemPrompt],
-                ["role": "user", "content": input.text]
-            ]
-        ]
-
-        let res = try await req.client.post(URI(string: "https://api.openai.com/v1/chat/completions")) { r in
-            r.headers.bearerAuthorization = BearerAuthorization(token: apiKey)
-            r.headers.contentType = .json
-            try r.content.encode(body, as: .json)
+        // Use a Codable struct instead of [String: Any]
+        struct OpenAIRequest: Content {
+            let model: String
+            let response_format: ResponseFormat
+            let messages: [Message]
+            
+            struct ResponseFormat: Content {
+                let type: String
+            }
+            
+            struct Message: Content {
+                let role: String
+                let content: String
+            }
         }
+
+        let requestBody = OpenAIRequest(
+            model: "gpt-5-mini",
+            response_format: OpenAIRequest.ResponseFormat(type: "json_object"),
+            messages: [
+                OpenAIRequest.Message(role: "system", content: systemPrompt),
+                OpenAIRequest.Message(role: "user", content: input.text)
+            ]
+        )
+
+        let res = try await req.client.post(
+            URI(string: "https://api.openai.com/v1/chat/completions"),
+            beforeSend: { r in
+                r.headers.bearerAuthorization = BearerAuthorization(token: apiKey)
+                r.headers.contentType = .json
+                try r.content.encode(requestBody)
+            }
+        )
 
         struct OpenAIChoice: Decodable {
             struct Msg: Decodable { let content: String? }

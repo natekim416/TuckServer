@@ -1,19 +1,14 @@
 import Vapor
 import Fluent
-import JWTKit
+import JWT
 
-struct UserJWTAuthenticator: AsyncJWTAuthenticator {
+struct UserJWTAuthenticator: JWTAuthenticator {
     typealias Payload = UserJWTPayload
 
-    func authenticate(jwt: UserJWTPayload, for req: Request) -> EventLoopFuture<Void> {
-        guard let userID = UUID(uuidString: jwt.subject.value) else {
-            return req.eventLoop.makeSucceededFuture(())
+    func authenticate(jwt: UserJWTPayload, for req: Request) async throws {
+        guard let user = try await User.find(jwt.userId, on: req.db) else {
+            return
         }
-
-        return User.find(userID, on: req.db).map { user in
-            if let user {
-                req.auth.login(user)
-            }
-        }
+        req.auth.login(user)
     }
 }

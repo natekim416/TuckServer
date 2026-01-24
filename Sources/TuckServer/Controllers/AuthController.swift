@@ -1,6 +1,6 @@
 import Vapor
 import Fluent
-import JWTKit
+import JWT
 
 struct RegisterRequest: Content { let email: String; let password: String }
 struct LoginRequest: Content { let email: String; let password: String }
@@ -32,7 +32,7 @@ struct AuthController: RouteCollection {
         let user = User(email: email, passwordHash: hash)
         try await user.save(on: req.db)
 
-        return try issueToken(for: user, req: req)
+        return try await issueToken(for: user, req: req)
     }
 
     func login(req: Request) async throws -> AuthResponse {
@@ -46,19 +46,16 @@ struct AuthController: RouteCollection {
             throw Abort(.unauthorized, reason: "Invalid credentials.")
         }
 
-        return try issueToken(for: user, req: req)
+        return try await issueToken(for: user, req: req)
     }
-
-    private func issueToken(for user: User, req: Request) throws -> AuthResponse {
-        guard let id = user.id else { throw Abort(.internalServerError) }
-
-        let payload = UserJWTPayload(
-            subject: .init(value: id.uuidString),
-            expiration: .init(value: Date().addingTimeInterval(60 * 60 * 24 * 30)),
-            issuedAt: .init(value: Date())
-        )
-
-        let token = try req.jwt.sign(payload)
+    
+    private func issueToken(for user: User, req: Request) async throws -> AuthResponse {
+        let userId = try user.requireID()
+        let expiration = Date().addingTimeInterval(60 * 60 * 24 * 7)
+        
+        let payload = UserJWTPayload(userId: userId, expiration: expiration)
+        let token = try await req.jwt.sign(payload)
+        
         return AuthResponse(token: token, user: user.asPublic)
     }
 }
