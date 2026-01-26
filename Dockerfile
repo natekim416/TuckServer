@@ -12,15 +12,14 @@ RUN --mount=type=cache,id=tuckserver-swiftpm,target=/root/.swiftpm \
 COPY . .
 
 # Build (cache .build output). Use -j 2 to avoid timeouts; drop to -j 1 if you hit OOM again.
-RUN --mount=type=cache,id=tuckserver-build,target=/build/.build \
-    --mount=type=cache,id=tuckserver-swiftpm,target=/root/.swiftpm \
+RUN --mount=type=cache,id=s/e4039a1b-0521-4364-86f8-8ce03cadc573/build/.build,target=/build/.build \
+    --mount=type=cache,id=s/e4039a1b-0521-4364-86f8-8ce03cadc573/root/.swiftpm,target=/root/.swiftpm \
     set -eux; \
     mkdir -p /staging; \
     swift build -c release -j 2 --product TuckServer; \
     BIN_PATH="$(swift build -c release --show-bin-path)"; \
-    cp "$BIN_PATH/TuckServer" /staging/; \
-    find -L "$BIN_PATH" -regex '.*\.resources$' -exec cp -Ra {} /staging \;
-
+    cp "$BIN_PATH/TuckServer" /staging/;
+    
 # Copy Public if present
 RUN if [ -d /build/Public ]; then cp -R /build/Public /staging/Public; fi
 
