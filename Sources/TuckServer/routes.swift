@@ -11,4 +11,6 @@ func routes(_ app: Application) throws {
         .grouped(User.guardMiddleware())
     
     try protected.register(collection: SmartSortController())
+    try protected.register(collection: BookmarkController())
+    try protected.register(collection: FolderController())
 }

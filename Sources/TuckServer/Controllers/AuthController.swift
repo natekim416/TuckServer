@@ -11,7 +11,7 @@ struct AuthResponse: Content {
 }
 
 struct AuthController: RouteCollection {
-    func boot(routes: RoutesBuilder) throws {
+    func boot(routes: any RoutesBuilder) throws {
         let auth = routes.grouped("auth")
         auth.post("register", use: register)
         auth.post("login", use: login)

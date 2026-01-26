@@ -19,6 +19,8 @@ public func configure(_ app: Application) async throws {
     ), as: .psql)
 
     app.migrations.add(CreateUser())
+    app.migrations.add(CreateFolder())
+    app.migrations.add(CreateBookmark())
     try await app.autoMigrate()
 
     // JWT 5.0

@@ -12,7 +12,7 @@ struct AIAnalysisResult: Content {
 }
 
 struct SmartSortController: RouteCollection {
-    func boot(routes: RoutesBuilder) throws {
+    func boot(routes: any RoutesBuilder) throws {
         routes.post("smart-sort", use: smartSort)
     }
 
