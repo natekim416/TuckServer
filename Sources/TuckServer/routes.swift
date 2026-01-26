@@ -14,3 +14,4 @@ func routes(_ app: Application) throws {
     try protected.register(collection: BookmarkController())
     try protected.register(collection: FolderController())
 }
+g

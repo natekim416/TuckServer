@@ -1,34 +1,57 @@
-import NIOSSL
+import Vapor
 import Fluent
 import FluentPostgresDriver
-import Vapor
 import JWT
 
-// configures your application
 public func configure(_ app: Application) async throws {
-    // uncomment to serve files from /Public folder
-    // app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
 
-    app.databases.use(DatabaseConfigurationFactory.postgres(configuration: .init(
-        hostname: Environment.get("DATABASE_HOST") ?? "localhost",
-        port: Environment.get("DATABASE_PORT").flatMap(Int.init(_:)) ?? SQLPostgresConfiguration.ianaPortNumber,
-        username: Environment.get("DATABASE_USERNAME") ?? "vapor_username",
-        password: Environment.get("DATABASE_PASSWORD") ?? "vapor_password",
-        database: Environment.get("DATABASE_NAME") ?? "vapor_database",
-        tls: .prefer(try .init(configuration: .clientDefault)))
-    ), as: .psql)
+    // MARK: - Server (Railway)
+    app.http.server.configuration.hostname = "0.0.0.0"
+    if let port = Environment.get("PORT").flatMap(Int.init) {
+        app.http.server.configuration.port = port
+    }
 
+    // MARK: - Database
+    guard let dbURL = Environment.get("DATABASE_URL") else {
+        fatalError("DATABASE_URL not set (Railway should provide this on deploy).")
+    }
+
+    // If you're running locally but DATABASE_URL is the Railway internal host,
+    // it will never resolve. Give a helpful error instead of mystery DNS crashes.
+    let isRailway =
+        Environment.get("RAILWAY_ENVIRONMENT") != nil ||
+        Environment.get("RAILWAY_PROJECT_ID") != nil ||
+        Environment.get("RAILWAY_SERVICE_ID") != nil
+
+    if !isRailway && dbURL.contains("railway.internal") {
+        fatalError("""
+        DATABASE_URL points to postgres.railway.internal which only resolves on Railway.
+        Remove DATABASE_URL (and DB env vars) from your Xcode Scheme to run locally.
+        """)
+    }
+
+    var pg = try SQLPostgresConfiguration(url: dbURL)
+
+    // Internal Railway network: no TLS needed
+    if dbURL.contains("railway.internal") {
+        pg.coreConfiguration.tls = .disable
+    }
+
+    app.databases.use(.postgres(configuration: pg), as: .psql)
+
+    // MARK: - Migrations
     app.migrations.add(CreateUser())
     app.migrations.add(CreateFolder())
     app.migrations.add(CreateBookmark())
     try await app.autoMigrate()
 
-    // JWT 5.0
-    let jwtSecret = Environment.get("JWT_SECRET") ?? "dev-insecure-secret"
-    let key = HMACKey(from: jwtSecret.data(using: .utf8)!)
+    // MARK: - JWT
+    guard let jwtSecret = Environment.get("JWT_SECRET") else {
+        fatalError("JWT_SECRET not set in Railway Variables")
+    }
+    let key = HMACKey(from: Data(jwtSecret.utf8))
     await app.jwt.keys.add(hmac: key, digestAlgorithm: .sha256)
 
-
-    // register routes
+    // MARK: - Routes
     try routes(app)
 }
