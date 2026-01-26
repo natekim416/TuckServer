@@ -27,10 +27,9 @@ RUN mkdir /staging
 
 # Build the application, with optimizations, with static linking, and using jemalloc
 # N.B.: The static version of jemalloc is incompatible with the static Swift runtime.
-RUN swift build -c release \
-        --product TuckServer \
-        --static-swift-stdlib \
-        -Xlinker -ljemalloc && \
+RUN swift build -c release -j 1 \
+    --product TuckServer \
+    -Xlinker -ljemalloc
     cp "$(swift build -c release --show-bin-path)/TuckServer" /staging && \
     find -L "$(swift build -c release --show-bin-path)" -regex '.*\.resources$' -exec cp -Ra {} /staging \;
 
