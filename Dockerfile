@@ -1,39 +1,33 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1.6
 
 FROM swift:6.1-noble AS build
 WORKDIR /build
 
-RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
-  && apt-get -q update \
-  && apt-get -q dist-upgrade -y \
-  && apt-get install -y libjemalloc-dev \
-  && rm -rf /var/lib/apt/lists/*
-
+# Resolve deps (cache SwiftPM downloads)
 COPY Package.* ./
-RUN swift package resolve
+RUN --mount=type=cache,id=tuckserver-swiftpm,target=/root/.swiftpm \
+    swift package resolve
 
+# Copy sources
 COPY . .
 
-RUN set -eux; \
+# Build (cache .build output). Use -j 2 to avoid timeouts; drop to -j 1 if you hit OOM again.
+RUN --mount=type=cache,id=tuckserver-build,target=/build/.build \
+    --mount=type=cache,id=tuckserver-swiftpm,target=/root/.swiftpm \
+    set -eux; \
     mkdir -p /staging; \
-    swift build -c release -j 1 \
-      --product TuckServer \
-      -Xlinker -ljemalloc; \
+    swift build -c release -j 2 --product TuckServer; \
     BIN_PATH="$(swift build -c release --show-bin-path)"; \
     cp "$BIN_PATH/TuckServer" /staging/; \
     find -L "$BIN_PATH" -regex '.*\.resources$' -exec cp -Ra {} /staging \;
 
-# Optional: copy Public if you have it
+# Copy Public if present
 RUN if [ -d /build/Public ]; then cp -R /build/Public /staging/Public; fi
 
-FROM ubuntu:noble AS run
+# ---- run image ----
+# Use a Swift runtime image so you DON'T need --static-swift-stdlib (faster + less RAM to link)
+FROM swift:6.1-noble
 WORKDIR /app
-
-RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
-  && apt-get -q update \
-  && apt-get -q dist-upgrade -y \
-  && apt-get -q install -y libjemalloc2 ca-certificates tzdata \
-  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /staging /app
 
