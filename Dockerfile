@@ -19,7 +19,7 @@ RUN mkdir -p /staging
 RUN --mount=type=cache,id=s/e4039a1b-0521-4364-86f8-8ce03cadc573-/build/.build,target=/build/.build \
     --mount=type=cache,id=s/e4039a1b-0521-4364-86f8-8ce03cadc573-/root/.swiftpm,target=/root/.swiftpm \
     set -eux; \
-    swift build -c release -j 1 --product TuckServer -Xlinker -ljemalloc
+    swift build -c release -j 1 --product TuckServer -Xlinker -ljemalloc: \
     BIN="$(find /build/.build -type f -path '*/release/TuckServer' | head -n 1)"; \
     test -n "$BIN"; \
     cp "$BIN" /staging/TuckServer; \
