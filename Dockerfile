@@ -15,9 +15,8 @@ RUN --mount=type=cache,target=/root/.swiftpm \
 COPY . .
 RUN mkdir -p /staging
 
-# Build with aggressive optimization settings for Railway
-RUN --mount=type=cache,target=/build/.build \
-    --mount=type=cache,target=/root/.swiftpm \
+RUN --mount=type=cache,id=s/e4039a1b-0521-4364-86f8-8ce03cadc573-/build/.build,target=/build/.build \
+    --mount=type=cache,id=s/e4039a1b-0521-4364-86f8-8ce03cadc573-/root/.swiftpm,target=/root/.swiftpm \
     set -eux; \
     swift build -c release \
         --product TuckServer \
