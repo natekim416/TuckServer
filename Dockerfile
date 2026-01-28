@@ -10,14 +10,16 @@ RUN swift package resolve $([ -f ./Package.resolved ] && echo "--force-resolved-
 COPY . .
 RUN mkdir -p /staging
 
-RUN set -eux; \
-  swift build -c release -j 1 --product TuckServer -Xlinker -ljemalloc; \
-  BIN="$(find /build/.build -type f -path '*/release/TuckServer' | head -n 1)"; \
-  cp "$BIN" /staging/TuckServer; \
-  find -L "$(dirname "$BIN")" -regex '.*\.resources$' -exec cp -Ra {} /staging \; || true; \
-  mkdir -p /staging/swift-libs; \
-  cp -a /usr/lib/swift/linux/*.so /staging/swift-libs/; \
-  cp -a /usr/lib/swift/linux/*/*.so /staging/swift-libs/ 2>/dev/null || true
+RUN --mount=type=cache,id=s/e4039a1b-0521-4364-86f8-8ce03cadc573-/build/.build,target=/build/.build \
+    --mount=type=cache,id=s/e4039a1b-0521-4364-86f8-8ce03cadc573-/root/.swiftpm,target=/root/.swiftpm \
+    set -eux; \
+    swift build -c release -j 1 --product TuckServer -Xlinker -ljemalloc; \
+    BIN="$(find /build/.build -type f -path '*/release/TuckServer' | head -n 1)"; \
+    cp "$BIN" /staging/TuckServer; \
+    find -L "$(dirname "$BIN")" -regex '.*\.resources$' -exec cp -Ra {} /staging \; || true; \
+    mkdir -p /staging/swift-libs; \
+    cp -a /usr/lib/swift/linux/*.so /staging/swift-libs/; \
+    cp -a /usr/lib/swift/linux/*/*.so /staging/swift-libs/ 2>/dev/null || true
 
 WORKDIR /staging
 RUN cp "/usr/libexec/swift/linux/swift-backtrace-static" ./ || true
