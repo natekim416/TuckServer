@@ -1,2 +1,8 @@
-.build/
-.swiftpm/
+.git
+.build
+.swiftpm
+DerivedData
+Packages
+*.log
+.env
+.DS_Store
