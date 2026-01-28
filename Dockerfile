@@ -29,15 +29,14 @@ RUN mkdir -p /staging
 # Build the application, with optimizations, with static linking, and using jemalloc
 # N.B.: The static version of jemalloc is incompatible with the static Swift runtime.
 RUN set -eux; \
-    swift build -c release \
+    swift build -c release -j 1 \
         --product TuckServer \
         --static-swift-stdlib \
-        -Xlinker -ljemalloc && \
-        -Xswiftc -j1 && \
-    # Copy main executable to staging area
-    cp "$(swift build -c release --show-bin-path)/TuckServer" /staging && \
-    # Copy resources bundled by SPM to staging area
-    find -L "$(swift build -c release --show-bin-path)" -regex '.*\.resources$' -exec cp -Ra {} /staging \; || true
+        -Xlinker -ljemalloc; \
+    BIN="$(find /build/.build -type f -path '*/release/TuckServer' | head -n 1)"; \
+    test -n "$BIN"; \
+    cp "$BIN" /staging/TuckServer; \
+    find -L "$(dirname "$BIN")" -regex '.*\.resources$' -exec cp -Ra {} /staging \; || true
 
 
 
@@ -49,8 +48,8 @@ RUN cp "/usr/libexec/swift/linux/swift-backtrace-static" ./
 
 # Copy any resources from the public directory and views directory if the directories exist
 # Ensure that by default, neither the directory nor any of its contents are writable.
-RUN [ -d /build/Public ] && { mv /build/Public ./Public && chmod -R a-w ./Public; } || true
-RUN [ -d /build/Resources ] && { mv /build/Resources ./Resources && chmod -R a-w ./Resources; } || true
+RUN if [ -d /build/Public ]; then mv /build/Public ./Public && chmod -R a-w ./Public; fi
+RUN if [ -d /build/Resources ]; then mv /build/Resources ./Resources && chmod -R a-w ./Resources; fi    
 
 # ================================
 # Run image
