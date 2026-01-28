@@ -39,7 +39,6 @@ RUN set -eux; \
     find -L "$(dirname "$BIN")" -regex '.*\.resources$' -exec cp -Ra {} /staging \; || true
 
 
-
 # Switch to the staging area
 WORKDIR /staging
 
@@ -49,7 +48,7 @@ RUN cp "/usr/libexec/swift/linux/swift-backtrace-static" ./
 # Copy any resources from the public directory and views directory if the directories exist
 # Ensure that by default, neither the directory nor any of its contents are writable.
 RUN if [ -d /build/Public ]; then mv /build/Public ./Public && chmod -R a-w ./Public; fi
-RUN if [ -d /build/Resources ]; then mv /build/Resources ./Resources && chmod -R a-w ./Resources; fi    
+RUN if [ -d /build/Resources ]; then mv /build/Resources ./Resources && chmod -R a-w ./Resources; fi
 
 # ================================
 # Run image
