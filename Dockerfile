@@ -24,7 +24,7 @@ RUN swift package resolve \
 # Copy entire repo into container
 COPY . .
 
-RUN mkdir /staging
+RUN mkdir -p /staging
 
 # Build the application, with optimizations, with static linking, and using jemalloc
 # N.B.: The static version of jemalloc is incompatible with the static Swift runtime.
@@ -33,10 +33,11 @@ RUN set -eux; \
         --product TuckServer \
         --static-swift-stdlib \
         -Xlinker -ljemalloc && \
+        -Xswiftc -j1 && \
     # Copy main executable to staging area
     cp "$(swift build -c release --show-bin-path)/TuckServer" /staging && \
     # Copy resources bundled by SPM to staging area
-    find -L "$(swift build -c release --show-bin-path)" -regex '.*\.resources$' -exec cp -Ra {} /staging \;
+    find -L "$(swift build -c release --show-bin-path)" -regex '.*\.resources$' -exec cp -Ra {} /staging \; || true
 
 
 
@@ -68,7 +69,7 @@ RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
       # libcurl4 \
 # If your app or its dependencies import FoundationXML, also install `libxml2`.
       # libxml2 \
-    && rm -r /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
 # Create a vapor user and group with /app as its home directory
 RUN useradd --user-group --create-home --system --skel /dev/null --home-dir /app vapor
