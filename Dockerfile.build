@@ -1,0 +1,55 @@
+# ================================
+# Build image
+# ================================
+FROM swift:6.1-jammy AS build
+WORKDIR /build
+
+RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
+    && apt-get -q update \
+    && apt-get -q install -y --no-install-recommends libjemalloc-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY Package.* ./
+RUN swift package resolve \
+    $([ -f ./Package.resolved ] && echo "--force-resolved-versions" || true)
+
+COPY . .
+RUN mkdir -p /staging
+
+RUN set -eux; \
+    swift build -c release \
+        --product TuckServer \
+        -Xswiftc -j2 \
+        -Xswiftc -num-threads 2 \
+        -Xlinker -ljemalloc; \
+    BIN="$(swift build -c release --show-bin-path)/TuckServer"; \
+    test -f "$BIN"; \
+    cp "$BIN" /staging/TuckServer; \
+    find -L "$(swift build -c release --show-bin-path)" -regex '.*\.resources$' -exec cp -Ra {} /staging \; || true
+
+
+WORKDIR /staging
+RUN cp "/usr/libexec/swift/linux/swift-backtrace-static" ./ || true
+RUN [ -d /build/Public ] && mv /build/Public ./Public && chmod -R a-w ./Public || true
+RUN [ -d /build/Resources ] && mv /build/Resources ./Resources && chmod -R a-w ./Resources || true
+
+# ================================
+# Run image
+# ================================
+FROM swift:6.1-jammy
+WORKDIR /app
+
+RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
+    && apt-get -q update \
+    && apt-get -q install -y --no-install-recommends \
+      libjemalloc2 ca-certificates tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd --user-group --create-home --system --skel /dev/null --home-dir /app vapor
+COPY --from=build --chown=vapor:vapor /staging /app
+
+ENV SWIFT_BACKTRACE=enable=yes,sanitize=yes,threads=all,images=all,interactive=no,swift-backtrace=./swift-backtrace-static
+USER vapor:vapor
+
+EXPOSE 8080
+CMD ["sh","-c","./TuckServer serve --env production --hostname 0.0.0.0 --port ${PORT:-8080}"]
