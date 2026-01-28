@@ -28,7 +28,8 @@ RUN mkdir /staging
 
 # Build the application, with optimizations, with static linking, and using jemalloc
 # N.B.: The static version of jemalloc is incompatible with the static Swift runtime.
-RUN --mount=type=cache,id=tuck-build,target=/build/.build \
+RUN --mount=type=cache,id=cache-tuck-build,target=/build/.build \
+    --mount=type=cache,id=cache-tuck-swiftpm,target=/root/.swiftpm \
     swift build -c release \
         --product TuckServer \
         --static-swift-stdlib \
