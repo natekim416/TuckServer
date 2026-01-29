@@ -61,29 +61,27 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(CreateBookmark())
     app.logger.notice("📝 Migrations registered")
 
-    // Run migrations with retry logic
-    app.logger.notice("🚀 Starting database migration task...")
-    Task {
-        var attempts = 0
-        let maxAttempts = 5
+    app.logger.notice("🚀 Starting database migrations synchronously...")
+    var attempts = 0
+    let maxAttempts = 5
+
+    while attempts < maxAttempts {
+        attempts += 1
+        app.logger.notice("🔄 Migration attempt \(attempts)/\(maxAttempts)...")
         
-        while attempts < maxAttempts {
-            attempts += 1
-            app.logger.notice("🔄 Migration attempt \(attempts)/\(maxAttempts)...")
+        do {
+            try await app.autoMigrate()
+            app.logger.notice("✅ Database migrations completed successfully!")
+            break
+        } catch {
+            app.logger.error("❌ Migration attempt \(attempts) failed: \(error)")
             
-            do {
-                try await app.autoMigrate()
-                app.logger.notice("✅ Database migrations completed successfully!")
-                return
-            } catch {
-                app.logger.error("❌ Migration attempt \(attempts) failed: \(error)")
-                
-                if attempts < maxAttempts {
-                    app.logger.notice("⏳ Waiting 5 seconds before retry...")
-                    try? await Task.sleep(nanoseconds: 5_000_000_000)
-                } else {
-                    app.logger.error("💥 All migration attempts exhausted. Server running without migrations.")
-                }
+            if attempts < maxAttempts {
+                app.logger.notice("⏳ Waiting 5 seconds before retry...")
+                try await Task.sleep(nanoseconds: 5_000_000_000)
+            } else {
+                app.logger.error("💥 All migration attempts exhausted.")
+                throw error // This will crash the app so you see the error
             }
         }
     }
