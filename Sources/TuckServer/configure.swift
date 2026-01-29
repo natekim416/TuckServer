@@ -51,9 +51,7 @@ public func configure(_ app: Application) async throws {
         pg.coreConfiguration.tls = .require(context)
     }
 
-    // Add connection settings
-    pg.coreConfiguration.maxConnectionsPerEventLoop = 1
-    pg.coreConfiguration.connectionPoolTimeout = .seconds(30)
+    // Remove the connection pool settings - they don't exist in this Fluent version
 
     app.databases.use(.postgres(configuration: pg), as: .psql, isDefault: true)
     app.logger.notice("📊 Database configuration complete")
