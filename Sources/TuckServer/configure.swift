@@ -2,6 +2,7 @@ import Vapor
 import Fluent
 import FluentPostgresDriver
 import JWT
+import NIOSSL
 
 public func configure(_ app: Application) async throws {
 
@@ -9,15 +10,15 @@ public func configure(_ app: Application) async throws {
     app.http.server.configuration.hostname = "0.0.0.0"
     if let port = Environment.get("PORT").flatMap(Int.init) {
         app.http.server.configuration.port = port
+    } else {
+        app.http.server.configuration.port = 8080
     }
 
     // MARK: - Database
     guard let dbURL = Environment.get("DATABASE_URL") else {
-        fatalError("DATABASE_URL not set (Railway should provide this on deploy).")
+        fatalError("DATABASE_URL not set (Railway should provide this).")
     }
 
-    // If you're running locally but DATABASE_URL is the Railway internal host,
-    // it will never resolve. Give a helpful error instead of mystery DNS crashes.
     let isRailway =
         Environment.get("RAILWAY_ENVIRONMENT") != nil ||
         Environment.get("RAILWAY_PROJECT_ID") != nil ||
@@ -26,29 +27,41 @@ public func configure(_ app: Application) async throws {
     if !isRailway && dbURL.contains("railway.internal") {
         fatalError("""
         DATABASE_URL points to postgres.railway.internal which only resolves on Railway.
-        Remove DATABASE_URL (and DB env vars) from your Xcode Scheme to run locally.
+        Remove DATABASE_URL from your Xcode Scheme to run locally.
         """)
     }
 
     var pg = try SQLPostgresConfiguration(url: dbURL)
 
-    // Internal Railway network: no TLS needed
     if dbURL.contains("railway.internal") {
         pg.coreConfiguration.tls = .disable
+    } else {
+        let tls = TLSConfiguration.makeClientConfiguration()
+        let context = try NIOSSLContext(configuration: tls)
+        pg.coreConfiguration.tls = .require(context)
     }
 
     app.databases.use(.postgres(configuration: pg), as: .psql)
-
-    // MARK: - Migrations
+    
     app.migrations.add(CreateUser())
     app.migrations.add(CreateFolder())
     app.migrations.add(CreateBookmark())
-    try await app.autoMigrate()
+
+    // Don't crash the whole service if DB isn't ready yet; log and keep serving.
+    do {
+        try await app.autoMigrate()
+        app.logger.info("✅ Database migrations completed")
+    } catch {
+        app.logger.error("❌ Database migration failed: \(error)")
+        // Keep running so Railway can route /health and you can see logs.
+        // Once DB is reachable, redeploy or trigger migrations again.
+    }
 
     // MARK: - JWT
-    guard let jwtSecret = Environment.get("JWT_SECRET") else {
+    guard let jwtSecret = Environment.get("JWT_SECRET"), !jwtSecret.isEmpty else {
         fatalError("JWT_SECRET not set in Railway Variables")
     }
+
     let key = HMACKey(from: Data(jwtSecret.utf8))
     await app.jwt.keys.add(hmac: key, digestAlgorithm: .sha256)
 
