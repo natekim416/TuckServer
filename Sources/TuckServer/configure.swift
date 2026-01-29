@@ -19,11 +19,11 @@ public func configure(_ app: Application) async throws {
         fatalError("DATABASE_URL not set (Railway should provide this).")
     }
 
-    
+    app.logger.notice("🔍 Attempting to parse DATABASE_URL...")
     if let u = URL(string: dbURL) {
-        app.logger.info("DB host=\(u.host ?? "nil") port=\(u.port?.description ?? "nil") db=\(u.path) scheme=\(u.scheme ?? "nil")")
+        app.logger.notice("✅ DB parsed - host=\(u.host ?? "nil") port=\(u.port?.description ?? "nil") db=\(u.path) scheme=\(u.scheme ?? "nil")")
     } else {
-        app.logger.error("DATABASE_URL is not a valid URL")
+        app.logger.error("❌ DATABASE_URL is not a valid URL")
     }
 
     let isRailway =
@@ -41,29 +41,52 @@ public func configure(_ app: Application) async throws {
     var pg = try SQLPostgresConfiguration(url: dbURL)
 
     if dbURL.contains("railway.internal") {
+        app.logger.notice("🔧 Using TLS disabled for railway.internal")
         pg.coreConfiguration.tls = .disable
     } else {
+        app.logger.notice("🔧 Using TLS required for external database")
         var tls = TLSConfiguration.makeClientConfiguration()
-        tls.certificateVerification = .none // managed DB cert chain issues are common in containers
+        tls.certificateVerification = .none
         let context = try NIOSSLContext(configuration: tls)
         pg.coreConfiguration.tls = .require(context)
-
     }
 
+    // Add connection settings
+    pg.coreConfiguration.maxConnectionsPerEventLoop = 1
+    pg.coreConfiguration.connectionPoolTimeout = .seconds(30)
+
     app.databases.use(.postgres(configuration: pg), as: .psql, isDefault: true)
+    app.logger.notice("📊 Database configuration complete")
 
     app.migrations.add(CreateUser())
     app.migrations.add(CreateFolder())
     app.migrations.add(CreateBookmark())
+    app.logger.notice("📝 Migrations registered")
 
-    // Don't crash the whole service if DB isn't ready yet; log and keep serving.
+    // Run migrations with retry logic
+    app.logger.notice("🚀 Starting database migration task...")
     Task {
-        do {
-            try await app.autoMigrate()
-            app.logger.info("✅ Database migrations completed")
-        } catch {
-            app.logger.error("❌ Database migration failed: \(error)")
-            app.logger.error("Server will continue running. Fix DATABASE_URL and redeploy.")
+        var attempts = 0
+        let maxAttempts = 5
+        
+        while attempts < maxAttempts {
+            attempts += 1
+            app.logger.notice("🔄 Migration attempt \(attempts)/\(maxAttempts)...")
+            
+            do {
+                try await app.autoMigrate()
+                app.logger.notice("✅ Database migrations completed successfully!")
+                return
+            } catch {
+                app.logger.error("❌ Migration attempt \(attempts) failed: \(error)")
+                
+                if attempts < maxAttempts {
+                    app.logger.notice("⏳ Waiting 5 seconds before retry...")
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                } else {
+                    app.logger.error("💥 All migration attempts exhausted. Server running without migrations.")
+                }
+            }
         }
     }
 
@@ -74,7 +97,10 @@ public func configure(_ app: Application) async throws {
 
     let key = HMACKey(from: Data(jwtSecret.utf8))
     await app.jwt.keys.add(hmac: key, digestAlgorithm: .sha256)
+    app.logger.notice("🔐 JWT configured")
 
     // MARK: - Routes
     try routes(app)
+    app.logger.notice("🛣️ Routes registered")
+    app.logger.notice("✨ Configuration complete - server ready!")
 }
