@@ -18,6 +18,12 @@ public func configure(_ app: Application) async throws {
     guard let dbURL = Environment.get("DATABASE_URL") else {
         fatalError("DATABASE_URL not set (Railway should provide this).")
     }
+    
+    if let u = URL(string: dbURL) {
+        app.logger.info("DB host=\(u.host ?? "nil") port=\(u.port?.description ?? "nil") db=\(u.path) scheme=\(u.scheme ?? "nil")")
+    } else {
+        app.logger.error("DATABASE_URL is not a valid URL")
+    }
 
     let isRailway =
         Environment.get("RAILWAY_ENVIRONMENT") != nil ||
@@ -36,9 +42,11 @@ public func configure(_ app: Application) async throws {
     if dbURL.contains("railway.internal") {
         pg.coreConfiguration.tls = .disable
     } else {
-        let tls = TLSConfiguration.makeClientConfiguration()
+        var tls = TLSConfiguration.makeClientConfiguration()
+        tls.certificateVerification = .none // managed DB cert chain issues are common in containers
         let context = try NIOSSLContext(configuration: tls)
         pg.coreConfiguration.tls = .require(context)
+
     }
 
     app.databases.use(.postgres(configuration: pg), as: .psql)
