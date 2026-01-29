@@ -60,6 +60,9 @@ public func configure(_ app: Application) async throws {
     app.migrations.add(CreateFolder())
     app.migrations.add(CreateBookmark())
     app.logger.notice("📝 Migrations registered")
+    
+    app.logger.notice("✨ Configuration complete - server ready!")
+    app.logger.notice("🎯 Listening on: \(app.http.server.configuration.hostname):\(app.http.server.configuration.port)")
 
     app.logger.notice("🚀 Starting database migrations synchronously...")
     var attempts = 0
