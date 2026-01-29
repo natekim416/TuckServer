@@ -19,6 +19,11 @@ public func configure(_ app: Application) async throws {
         fatalError("DATABASE_URL not set (Railway should provide this).")
     }
     
+    print(">>> DATABASE_URL present? \(!dbURL.isEmpty)")
+    print(">>> DATABASE_URL host: \(URL(string: dbURL)?.host ?? "nil")")
+    app.logger.error(">>> DATABASE_URL host: \(URL(string: dbURL)?.host ?? "nil")")
+
+    
     if let u = URL(string: dbURL) {
         app.logger.info("DB host=\(u.host ?? "nil") port=\(u.port?.description ?? "nil") db=\(u.path) scheme=\(u.scheme ?? "nil")")
     } else {
