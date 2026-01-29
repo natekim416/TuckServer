@@ -17,15 +17,11 @@ COPY . .
 RUN mkdir -p /staging
 
 RUN set -eux; \
-    swift build -c release \
-        --product TuckServer \
-        -Xswiftc -j2 \
-        -Xswiftc -num-threads 2 \
-        -Xlinker -ljemalloc; \
-    BIN="$(swift build -c release --show-bin-path)/TuckServer"; \
-    test -f "$BIN"; \
-    cp "$BIN" /staging/TuckServer; \
-    find -L "$(swift build -c release --show-bin-path)" -regex '.*\.resources$' -exec cp -Ra {} /staging \; || true
+    swift build -c release -j 2 --product TuckServer -Xlinker -ljemalloc; \
+    BIN_PATH="$(swift build -c release --show-bin-path)"; \
+    cp "$BIN_PATH/TuckServer" /staging/TuckServer; \
+    find -L "$BIN_PATH" -regex '.*\.resources$' -exec cp -Ra {} /staging \; || true
+
 
 
 WORKDIR /staging
