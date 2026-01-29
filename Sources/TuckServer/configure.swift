@@ -18,10 +18,6 @@ public func configure(_ app: Application) async throws {
     guard let dbURL = Environment.get("DATABASE_URL") else {
         fatalError("DATABASE_URL not set (Railway should provide this).")
     }
-    
-    let host = URL(string: dbURL)?.host ?? "nil"
-    app.logger.error(">>> DATABASE_URL host: \(host)")
-    print(">>> DATABASE_URL host: \(host)")
 
     
     if let u = URL(string: dbURL) {
@@ -54,20 +50,21 @@ public func configure(_ app: Application) async throws {
 
     }
 
-    app.databases.use(.postgres(configuration: pg), as: .psql)
-    
+    app.databases.use(.postgres(configuration: pg), as: .psql, isDefault: true)
+
     app.migrations.add(CreateUser())
     app.migrations.add(CreateFolder())
     app.migrations.add(CreateBookmark())
 
     // Don't crash the whole service if DB isn't ready yet; log and keep serving.
-    do {
-        try await app.autoMigrate()
-        app.logger.info("✅ Database migrations completed")
-    } catch {
-        app.logger.error("❌ Database migration failed: \(error)")
-        // Keep running so Railway can route /health and you can see logs.
-        // Once DB is reachable, redeploy or trigger migrations again.
+    Task {
+        do {
+            try await app.autoMigrate()
+            app.logger.info("✅ Database migrations completed")
+        } catch {
+            app.logger.error("❌ Database migration failed: \(error)")
+            app.logger.error("Server will continue running. Fix DATABASE_URL and redeploy.")
+        }
     }
 
     // MARK: - JWT
