@@ -30,9 +30,10 @@ struct SmartSortController: RouteCollection {
 
         Rules:
         1. Extract relevant TOPICS as folders.
-        2. Identify DEADLINES (format: YYYY-MM-DD).
-        3. Identify PRICE if present (number only).
-        4. Return STRICT JSON with keys: folders (array of strings), deadline (string or null), price (number or null).
+        2. PREFER using existing folders when they are a good match. Only create a new folder if none of the existing ones fit.
+        3. Identify DEADLINES (format: YYYY-MM-DD).
+        4. Identify PRICE if present (number only).
+        5. Return STRICT JSON with keys: folders (array of strings), deadline (string or null), price (number or null).
 
         \( (input.userExamples ?? "").isEmpty ? "" : "Here is how the user previously organized similar items:\n" + (input.userExamples ?? "") )
         """

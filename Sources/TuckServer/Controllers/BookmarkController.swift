@@ -5,28 +5,32 @@ struct BookmarkController: RouteCollection {
     func boot(routes: any RoutesBuilder) throws {
         let bookmarks = routes.grouped("bookmarks")
         
-        let protected = bookmarks.grouped(UserJWTAuthenticator())
-            .grouped(User.guardMiddleware())
-        
-        protected.post("smart-save", use: analyzeAndSave)
-        protected.get(use: index)
-        protected.delete(":bookmarkID", use: delete)
+        bookmarks.post("smart-save", use: analyzeAndSave)
+        bookmarks.get(use: index)
+        bookmarks.delete(":bookmarkID", use: delete)
     }
     
     func analyzeAndSave(req: Request) async throws -> SavedBookmarkResponse {
         let user = try req.auth.require(User.self)
         let data = try req.content.decode(AnalyzeAndSaveRequest.self)
         
-        // 1. Analyze with AI
+        // 1. Get existing folder names for this user
+        let existingFolders = try await Folder.query(on: req.db)
+            .filter(\.$user.$id == user.id!)
+            .all()
+        let folderNames = existingFolders.map { $0.name }
+        let folderContext = folderNames.isEmpty ? "" : "Existing folders: \(folderNames.joined(separator: ", "))"
+        
+        // 2. Analyze with AI, including existing folders as context
         let text = [data.url, data.title, data.notes].compactMap { $0 }.joined(separator: " ")
         let smartSortController = SmartSortController()
-        let aiRequest = SmartSortRequest(text: text, userExamples: nil)
+        let aiRequest = SmartSortRequest(text: text, userExamples: folderContext.isEmpty ? nil : folderContext)
         
         // Temporarily set content for smartSort
         try req.content.encode(aiRequest)
         let analysis = try await smartSortController.smartSort(req: req)
         
-        // 2. Find or create folder
+        // 3. Find or create folder
         let folderName = analysis.folders.first ?? "Uncategorized"
         let folder = try await Folder.query(on: req.db)
             .filter(\.$user.$id == user.id!)
@@ -41,7 +45,7 @@ struct BookmarkController: RouteCollection {
             try await targetFolder.save(on: req.db)
         }
         
-        // 3. Create bookmark
+        // 4. Create bookmark
         let bookmark = Bookmark(
             userId: user.id!,
             folderId: targetFolder.id,
