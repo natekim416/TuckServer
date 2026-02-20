@@ -6,8 +6,42 @@ struct BookmarkController: RouteCollection {
         let bookmarks = routes.grouped("bookmarks")
         
         bookmarks.post("smart-save", use: analyzeAndSave)
+        bookmarks.post(use: create)
         bookmarks.get(use: index)
         bookmarks.delete(":bookmarkID", use: delete)
+    }
+    
+    /// Simple save — no AI, just save to the specified folder by name
+    func create(req: Request) async throws -> Bookmark {
+        let user = try req.auth.require(User.self)
+        let data = try req.content.decode(CreateBookmarkRequest.self)
+        
+        // Find or create the target folder
+        var folderId: UUID? = nil
+        if let folderName = data.folderName, !folderName.isEmpty {
+            let existing = try await Folder.query(on: req.db)
+                .filter(\.$user.$id == user.id!)
+                .filter(\.$name == folderName)
+                .first()
+            
+            if let existing = existing {
+                folderId = existing.id
+            } else {
+                let newFolder = Folder(userId: user.id!, name: folderName)
+                try await newFolder.save(on: req.db)
+                folderId = newFolder.id
+            }
+        }
+        
+        let bookmark = Bookmark(
+            userId: user.id!,
+            folderId: folderId,
+            url: data.url,
+            title: data.title,
+            notes: data.notes
+        )
+        try await bookmark.save(on: req.db)
+        return bookmark
     }
     
     func analyzeAndSave(req: Request) async throws -> SavedBookmarkResponse {
@@ -92,6 +126,13 @@ struct AnalyzeAndSaveRequest: Content {
     let url: String
     let title: String?
     let notes: String?
+}
+
+struct CreateBookmarkRequest: Content {
+    let url: String
+    let title: String?
+    let notes: String?
+    let folderName: String?
 }
 
 struct SavedBookmarkResponse: Content {
